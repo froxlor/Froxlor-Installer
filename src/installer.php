@@ -154,12 +154,12 @@ class Action
 		$_die = false;
 
 		InstallFroxlorCmd::printnoln("Checking PHP-version ...");
-		if (version_compare("5.6.0", PHP_VERSION, ">=")) {
-			InstallFroxlorCmd::printerr("You need at least PHP-5.6, you have '" . PHP_VERSION . "'");
+		if (version_compare("7.0.0", PHP_VERSION, ">=")) {
+			InstallFroxlorCmd::printerr("You need at least PHP-7.0, you have '" . PHP_VERSION . "'");
 			$_die = true;
 		} else {
-			if (version_compare("7.0.0", PHP_VERSION, ">=")) {
-				InstallFroxlorCmd::printwarn("PHP version sufficient, recommened is PHP-7.0 and higher");
+			if (version_compare("7.1.0", PHP_VERSION, ">=")) {
+				InstallFroxlorCmd::printwarn("PHP version sufficient, recommened is PHP-7.1 and higher");
 			} else {
 				InstallFroxlorCmd::printsucc("[ok]");
 			}
@@ -375,6 +375,7 @@ class Action
 			// remove unix-socket plugin for user root to allow login not only from CLI
 			$db_root->exec("UPDATE mysql.user SET `plugin` = '' WHERE `User` = '" . $this->_data['sql']['root_user'] . "';");
 		} catch (PDOException $e) {
+			InstallFroxlorCmd::printerr($e->getMessage());
 			InstallFroxlorCmd::printwarn("Testing MySQL root connection without password");
 			// possibly without passwd?
 			try {
@@ -606,7 +607,7 @@ class Action
 		if (version_compare($db->getAttribute(PDO::ATTR_SERVER_VERSION), '8.0.11', '>=')) {
 			// create user
 			$db->exec("
-				CREATE USER '" . $username . "'@'" . $access_host . "' IDENTIFIED BY 'password'
+				CREATE USER '" . $username . "'@'" . $access_host . "' IDENTIFIED BY '" . $password . "'
 			");
 			// grant privileges
 			$db->exec("
@@ -615,18 +616,8 @@ class Action
 		} else {
 			// grant privileges
 			$db->exec("
-				GRANT ALL PRIVILEGES ON `" . $username . "`.* TO '" . $username . "'@'" . $access_host . "' IDENTIFIED BY 'password'
+				GRANT ALL PRIVILEGES ON `" . $username . "`.* TO '" . $username . "'@'" . $access_host . "' IDENTIFIED BY '" . $password . "'
 			");
-		}
-		// set password
-		if (version_compare($db->getAttribute(PDO::ATTR_SERVER_VERSION), '5.7.6', '<')) {
-			if ($p_encrypted) {
-				$db->exec("SET PASSWORD FOR '" . $username . "'@'" . $access_host . "' = '" . $password . "'");
-			} else {
-				$db->exec("SET PASSWORD FOR '" . $username . "'@'" . $access_host . "' = PASSWORD('" . $password . "')");
-			}
-		} else {
-			$db->exec("ALTER USER '" . $username . "'@'" . $access_host . "' IDENTIFIED BY '" . $password . "'");
 		}
 	}
 
