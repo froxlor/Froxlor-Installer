@@ -157,7 +157,7 @@ abstract class CmdLineHandler
 		return new static::$action_class(self::$args);
 	}
 
-	public static function getInput($prompt = "#", $default = "", $hidden = false)
+	public static function getInput($prompt = "#", $default = "", $hidden = false, $no_lowercase = false)
 	{
 		if (! empty($default)) {
 			$prompt .= " [" . $default . "]";
@@ -172,7 +172,7 @@ abstract class CmdLineHandler
 		if ($hidden) {
 			system('stty echo');
 		}
-		return mb_strtolower($result);
+		return $no_lowercase ? $result : mb_strtolower($result);
 	}
 
 	public static function getDirectory($prompt = "#", $default = null)

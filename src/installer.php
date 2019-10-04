@@ -351,10 +351,10 @@ class Action
 
 		while (true) {
 			$p = "Enter the password of the MySQL root user";
-			$mrootpwd_a = InstallFroxlorCmd::getInput($p, null, true);
+			$mrootpwd_a = InstallFroxlorCmd::getInput($p, null, true, true);
 
 			$p = "Enter the password of the MySQL root user again";
-			$mrootpwd_b = InstallFroxlorCmd::getInput($p, null, true);
+			$mrootpwd_b = InstallFroxlorCmd::getInput($p, null, true, true);
 
 			if ($mrootpwd_a == $mrootpwd_b) {
 				$this->_data['sql']['root_password'] = $mrootpwd_a;
