@@ -557,6 +557,7 @@ class Action
   			`password` = '" . crypt($this->_data['sys']['admin_password'], '$5$' . md5(uniqid(microtime(), 1)) . md5(uniqid(microtime(), 1))) . "',
   			`name` = 'Siteadmin',
   			`email` = 'admin@" . $this->_data['sys']['hostname'] . "',
+			`api_allowed` = 1,
   			`customers` = -1,
   			`customers_see_all` = 1,
   			`caneditphpsettings` = 1,
