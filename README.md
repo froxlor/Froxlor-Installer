@@ -19,7 +19,7 @@ apt-get install git
 Acquire froxlor-install PHAR:
 
 ```
-wget https://files.froxlor.org/froxlor-install.phar
+wget https://github.com/Froxlor/Froxlor-Installer/blob/master/bin/froxlor-install.phar
 ```
 
 Start froxlor-install:
