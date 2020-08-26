@@ -7,7 +7,7 @@ A simple shell installer for froxlor
 Install requirements:
 
 ```
-apt-get install apache2 mysql-server php php-mysql php-simplexml php-xml php-mbstring php-curl php-bcmath php-zip
+apt-get install apache2 default-mysql-server php php-mysql php-xml php-mbstring php-curl php-bcmath php-zip
 ```
 
 If you want to retreive the latest froxlor development version using the ```--git``` parameter, you also need to install git:
