@@ -30,7 +30,7 @@ class InstallFroxlorCmd extends CmdLineHandler
 	 *
 	 * @var string
 	 */
-	public static $VERSION = '0.2-alpha';
+	public static $VERSION = '0.3-beta';
 
 	/**
 	 * list of valid switches
@@ -51,6 +51,8 @@ class InstallFroxlorCmd extends CmdLineHandler
 		'local',
 		'git',
 		'import-settings',
+		'parameters-file',
+		'example-parameters',
 		'help'
 	);
 
@@ -72,11 +74,12 @@ class InstallFroxlorCmd extends CmdLineHandler
 		self::println("--import-settings\tImport settings from another froxlor installation.");
 		self::println("\t\t\tExample: --import-settings=/path/to/Froxlor_settings-[version]-[dbversion]-[date].json or --import-settings=http://domain.tld/Froxlor_settings-[version]-[dbversion]-[date].json");
 		self::println("");
-		self::println("--help\t\t\tshow help screen (this)");
+		self::println("--parameters-file\tPass all required parameters via a file instead of asking for them");
+		self::println("\t\t\tExample: --parameters-file=/path/to/someFile or --parameters-file=http://domain.tld/setup-params");
 		self::println("");
-		// switches
-		// self::println("-d\t\t\tenable debug output");
-		self::println("-h\t\t\tsame as --help");
+		self::println("--example-parameters\toutput an example parameters-file structure");
+		self::println("");
+		self::println("--help | -h\t\tshow help screen (this)");
 		self::println("");
 
 		die(); // end of execution
@@ -113,6 +116,7 @@ class Action
 	{
 		$do_download = true;
 		$do_git = false;
+		$do_params_file = false;
 		if (array_key_exists("local", $this->_args)) {
 			if (! is_file($this->_args["local"])) {
 				throw new Exception("Given file is not a file");
@@ -125,9 +129,14 @@ class Action
 		} elseif (array_key_exists("git", $this->_args)) {
 			$do_download = false;
 			$do_git = true;
+		} elseif (array_key_exists("parameters-file", $this->_args)) {
+			$do_params_file = true;
 		} elseif (array_key_exists("skip-download", $this->_args) && ! array_key_exists("local", $this->_args) && ! array_key_exists("git", $this->_args)) {
 			InstallFroxlorCmd::printerr("If you skip downloading of froxlor, you need to specify the path to the tarbal using --local or use --git");
 			exit();
+		} elseif (array_key_exists("example-parameters", $this->_args)) {
+			$this->showExampleParameters();
+			die();
 		}
 
 		$this->_requirementCheck();
@@ -136,7 +145,7 @@ class Action
 
 		$this->_extractFroxlor($do_download, $do_git);
 
-		$db_root = $this->_getData();
+		$db_root = $this->_getData($do_params_file);
 
 		$this->_installBaseData($db_root);
 
@@ -154,12 +163,12 @@ class Action
 		$_die = false;
 
 		InstallFroxlorCmd::printnoln("Checking PHP-version ...");
-		if (version_compare("7.0.0", PHP_VERSION, ">=")) {
-			InstallFroxlorCmd::printerr("You need at least PHP-7.0, you have '" . PHP_VERSION . "'");
+		if (version_compare("7.1.0", PHP_VERSION, ">=")) {
+			InstallFroxlorCmd::printerr("You need at least PHP-7.1, you have '" . PHP_VERSION . "'");
 			$_die = true;
 		} else {
-			if (version_compare("7.1.0", PHP_VERSION, ">=")) {
-				InstallFroxlorCmd::printwarn("PHP version sufficient, recommened is PHP-7.1 and higher");
+			if (version_compare("7.4.0", PHP_VERSION, ">=")) {
+				InstallFroxlorCmd::printwarn("PHP version sufficient, recommened is PHP-7.4 and higher");
 			} else {
 				InstallFroxlorCmd::printsucc("[ok]");
 			}
@@ -299,7 +308,7 @@ class Action
 		}
 	}
 
-	private function _getData()
+	private function _getData($do_params_file = false)
 	{
 		// ask for general information
 		$this->_data['sql'] = array(
@@ -320,47 +329,63 @@ class Action
 			'admin_password' => null
 		);
 
-		InstallFroxlorCmd::printwarn("Enter the domain under wich Froxlor shall be reached, this normally" . PHP_EOL . "is the FQDN (Fully Qualified Domain Name) of your system." . PHP_EOL . "If you don't know the FQDN of your system, execute 'hostname -f'." . PHP_EOL . "This installscript will try to guess your FQDN automatically if" . PHP_EOL . "you leave this field blank, setting it to the output of 'hostname -f'");
+		if ($do_params_file) {
+			$import_data = $this->importParametersFile();
+			$imp_arr = explode("\n", $import_data);
+			foreach ($imp_arr as $line) {
+				if (! empty(trim($line))) {
+					$keyval = explode("=", $line);
+					array_map('trim', $keyval);
+					$impkey = explode(".", $keyval[0]);
+					array_map('trim', $impkey);
+					// set the value
+					$this->_data[$impkey[0]][$impkey[1]] = $keyval[1];
+				}
+			}
+		} else {
 
-		$host = array();
-		exec('hostname -f', $host);
-		$p = "Enter your system's hostname";
-		$this->_data['sys']['hostname'] = InstallFroxlorCmd::getInput($p, $host[0]);
+			InstallFroxlorCmd::printwarn("Enter the domain under wich Froxlor shall be reached, this normally" . PHP_EOL . "is the FQDN (Fully Qualified Domain Name) of your system." . PHP_EOL . "If you don't know the FQDN of your system, execute 'hostname -f'." . PHP_EOL . "This installscript will try to guess your FQDN automatically if" . PHP_EOL . "you leave this field blank, setting it to the output of 'hostname -f'");
 
-		InstallFroxlorCmd::printwarn("Enter the IP address of your system, under wich all" . PHP_EOL . "websites shall then be reached. This must be the same" . PHP_EOL . "IP address the domain you inserted above points to." . PHP_EOL . "You *must* set this to your correct IP address.");
+			$host = array();
+			exec('hostname -f', $host);
+			$p = "Enter your system's hostname";
+			$this->_data['sys']['hostname'] = InstallFroxlorCmd::getInput($p, $host[0]);
 
-		$ips = array();
-		exec('hostname -I', $ips);
-		$ips = explode(" ", $ips[0]);
-		$p = "Enter your system's ip-address";
-		$this->_data['sys']['ipaddress'] = InstallFroxlorCmd::getInput($p, $ips[0]);
+			InstallFroxlorCmd::printwarn("Enter the IP address of your system, under wich all" . PHP_EOL . "websites shall then be reached. This must be the same" . PHP_EOL . "IP address the domain you inserted above points to." . PHP_EOL . "You *must* set this to your correct IP address.");
 
-		InstallFroxlorCmd::printwarn("Enter the IP address of the MySQL server, if the MySQL" . PHP_EOL . "server is on the same machine, enter 'localhost' or" . PHP_EOL . "simply leave the field blank.");
+			$ips = array();
+			exec('hostname -I', $ips);
+			$ips = explode(" ", $ips[0]);
+			$p = "Enter your system's ip-address";
+			$this->_data['sys']['ipaddress'] = InstallFroxlorCmd::getInput($p, $ips[0]);
 
-		$p = "Enter mysql-host address";
-		$this->_data['sql']['host'] = InstallFroxlorCmd::getInput($p, 'localhost');
-		$this->_data['sql']['host'] = strtolower($this->_data['sql']['host']);
+			InstallFroxlorCmd::printwarn("Enter the IP address of the MySQL server, if the MySQL" . PHP_EOL . "server is on the same machine, enter 'localhost' or" . PHP_EOL . "simply leave the field blank.");
 
-		if ($this->_data['sql']['host'] != 'localhost')
-			$this->_data['sys']['mysqlaccess_hosts'] .= ',' . $this->_data['sql']['host'];
+			$p = "Enter mysql-host address";
+			$this->_data['sql']['host'] = InstallFroxlorCmd::getInput($p, 'localhost');
+			$this->_data['sql']['host'] = strtolower($this->_data['sql']['host']);
 
-		InstallFroxlorCmd::printwarn("Enter the username of the MySQL root user." . PHP_EOL . "The default is 'root'.");
+			if ($this->_data['sql']['host'] != 'localhost')
+				$this->_data['sys']['mysqlaccess_hosts'] .= ',' . $this->_data['sql']['host'];
 
-		$p = "MySQL root user";
-		$this->_data['sql']['root_user'] = InstallFroxlorCmd::getInput($p, 'root');
+			InstallFroxlorCmd::printwarn("Enter the username of the MySQL root user." . PHP_EOL . "The default is 'root'.");
 
-		while (true) {
-			$p = "Enter the password of the MySQL root user";
-			$mrootpwd_a = InstallFroxlorCmd::getInput($p, null, true, true);
+			$p = "MySQL root user";
+			$this->_data['sql']['root_user'] = InstallFroxlorCmd::getInput($p, 'root');
 
-			$p = "Enter the password of the MySQL root user again";
-			$mrootpwd_b = InstallFroxlorCmd::getInput($p, null, true, true);
+			while (true) {
+				$p = "Enter the password of the MySQL root user";
+				$mrootpwd_a = InstallFroxlorCmd::getInput($p, null, true, true);
 
-			if ($mrootpwd_a == $mrootpwd_b) {
-				$this->_data['sql']['root_password'] = $mrootpwd_a;
-				break;
-			} else {
-				InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
+				$p = "Enter the password of the MySQL root user again";
+				$mrootpwd_b = InstallFroxlorCmd::getInput($p, null, true, true);
+
+				if ($mrootpwd_a == $mrootpwd_b) {
+					$this->_data['sql']['root_password'] = $mrootpwd_a;
+					break;
+				} else {
+					InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
+				}
 			}
 		}
 
@@ -407,49 +432,50 @@ class Action
 			die();
 		}
 
-		InstallFroxlorCmd::printwarn("Enter the username of the unprivileged MySQL user you want Froxlor to use." . PHP_EOL . "The default is 'froxlor'." . PHP_EOL . "CAUTION: any user with that name will be deleted!");
+		if (! $do_params_file) {
+			InstallFroxlorCmd::printwarn("Enter the username of the unprivileged MySQL user you want Froxlor to use." . PHP_EOL . "The default is 'froxlor'." . PHP_EOL . "CAUTION: any user with that name will be deleted!");
 
-		$p = "MySQL unprivileged user";
-		$this->_data['sql']['user'] = InstallFroxlorCmd::getInput($p, 'froxlor');
+			$p = "MySQL unprivileged user";
+			$this->_data['sql']['user'] = InstallFroxlorCmd::getInput($p, 'froxlor');
 
-		while (true) {
-			$p = "Enter the password of the MySQL unprivileged user";
-			$musrpwd_a = InstallFroxlorCmd::getInput($p, null, true);
+			while (true) {
+				$p = "Enter the password of the MySQL unprivileged user";
+				$musrpwd_a = InstallFroxlorCmd::getInput($p, null, true, true);
 
-			$p = "Enter the password of the MySQL unprivileged user again";
-			$musrpwd_b = InstallFroxlorCmd::getInput($p, null, true);
+				$p = "Enter the password of the MySQL unprivileged user again";
+				$musrpwd_b = InstallFroxlorCmd::getInput($p, null, true, true);
 
-			if ($musrpwd_a == $musrpwd_b) {
-				$this->_data['sql']['password'] = $musrpwd_a;
-				break;
-			} else {
-				InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
+				if ($musrpwd_a == $musrpwd_b) {
+					$this->_data['sql']['password'] = $musrpwd_a;
+					break;
+				} else {
+					InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
+				}
 			}
-		}
 
-		InstallFroxlorCmd::printwarn("Enter the username of the admin user you want in your Froxlor panel." . PHP_EOL . "Default is 'admin'.");
+			InstallFroxlorCmd::printwarn("Enter the username of the admin user you want in your Froxlor panel." . PHP_EOL . "Default is 'admin'.");
 
-		$p = "Froxlor admin user";
-		$this->_data['sys']['admin'] = InstallFroxlorCmd::getInput($p, 'admin');
+			$p = "Froxlor admin user";
+			$this->_data['sys']['admin'] = InstallFroxlorCmd::getInput($p, 'admin');
 
-		while (true) {
-			$p = "Enter the password of the Froxlor admin user";
-			$madmpwd_a = InstallFroxlorCmd::getInput($p, null, true);
+			while (true) {
+				$p = "Enter the password of the Froxlor admin user";
+				$madmpwd_a = InstallFroxlorCmd::getInput($p, null, true, true);
 
-			$p = "Enter the password of the Froxlor admin user again";
-			$madmpwd_b = InstallFroxlorCmd::getInput($p, null, true);
+				$p = "Enter the password of the Froxlor admin user again";
+				$madmpwd_b = InstallFroxlorCmd::getInput($p, null, true, true);
 
-			if ($madmpwd_a == $madmpwd_b) {
-				$this->_data['sys']['admin_password'] = $madmpwd_a;
-				break;
-			} else {
-				InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
+				if ($madmpwd_a == $madmpwd_b) {
+					$this->_data['sys']['admin_password'] = $madmpwd_a;
+					break;
+				} else {
+					InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
+				}
 			}
+
+			$p = "Webserver user name";
+			$this->_data['sys']['webserver_user'] = InstallFroxlorCmd::getInput($p, 'www-data');
 		}
-
-		$p = "Webserver user name";
-		$this->_data['sys']['webserver_user'] = InstallFroxlorCmd::getInput($p, 'www-data');
-
 		return $db_root;
 	}
 
@@ -571,8 +597,6 @@ class Action
   			`email_forwarders` = -1,
   			`email_quota` = -1,
   			`ftps` = -1,
-  			`tickets` = -1,
-  			`tickets_see_all` = 1,
   			`subdomains` = -1,
   			`traffic` = -1048576;
 		");
@@ -607,18 +631,30 @@ class Action
 		// mysql8 compatibility
 		if (version_compare($db->getAttribute(PDO::ATTR_SERVER_VERSION), '8.0.11', '>=')) {
 			// create user
-			$db->exec("
-				CREATE USER '" . $username . "'@'" . $access_host . "' IDENTIFIED BY '" . $password . "'
+			$stmt = $db->prepare("
+				CREATE USER '" . $username . "'@'" . $access_host . "' IDENTIFIED BY :password
 			");
+			$stmt->execute(array(
+				"password" => $password
+			));
 			// grant privileges
-			$db->exec("
-				GRANT ALL ON `" . $username . "`.* TO '" . $username . "'@'" . $access_host . "'
+			$stmt = $db->prepare("
+				GRANT ALL ON `" . $username . "`.* TO :username@:host
 			");
+			$stmt->execute(array(
+				"username" => $username,
+				"host" => $access_host
+			));
 		} else {
 			// grant privileges
-			$db->exec("
-				GRANT ALL PRIVILEGES ON `" . $username . "`.* TO '" . $username . "'@'" . $access_host . "' IDENTIFIED BY '" . $password . "'
+			$stmt = $db->prepare("
+				GRANT ALL PRIVILEGES ON `" . $username . "`.* TO :username@:host IDENTIFIED BY :password
 			");
+			$stmt->execute(array(
+				"username" => $username,
+				"host" => $access_host,
+				"password" => $password
+			));
 		}
 	}
 
@@ -627,6 +663,79 @@ class Action
 		InstallFroxlorCmd::printwarn("Importing settings...");
 		exec("php " . $this->_data['basedir'] . "install/scripts/config-services.php --froxlor-dir=" . $this->_data['basedir'] . " --import-settings=" . $this->_args['import-settings']);
 		InstallFroxlorCmd::printsucc("[ok]");
+	}
+
+	private function importParametersFile()
+	{
+		if (strtoupper(substr($this->_args["parameters-file"], 0, 4)) == 'HTTP') {
+			echo "Settings file seems to be an URL, trying to download" . PHP_EOL;
+			$target = "/tmp/parameters-files-" . time() . ".txt";
+			if (@file_exists($target)) {
+				@unlink($target);
+			}
+			$this->downloadFile($this->_args["parameters-file"], $target);
+			$this->_args["parameters-file"] = $target;
+		}
+		if (! is_file($this->_args["parameters-file"])) {
+			throw new \Exception("Given parameters file is not a file (".$this->_args["parameters-file"].")");
+		} elseif (! file_exists($this->_args["parameters-file"])) {
+			throw new \Exception("Given parameters file cannot be found ('" . $this->_args["parameters-file"] . "')");
+		} elseif (! is_readable($this->_args["parameters-file"])) {
+			throw new \Exception("Given parameters file cannot be read ('" . $this->_args["parameters-file"] . "')");
+		}
+		$imp_content = file_get_contents($this->_args["parameters-file"]);
+		return $imp_content;
+	}
+
+	private function downloadFile($src, $dest)
+	{
+		set_time_limit(0);
+		// This is the file where we save the information
+		$fp = fopen($dest, 'w+');
+		// Here is the file we are downloading, replace spaces with %20
+		$ch = curl_init(str_replace(" ", "%20", $src));
+		curl_setopt($ch, CURLOPT_TIMEOUT, 50);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		// write curl response to file
+		curl_setopt($ch, CURLOPT_FILE, $fp);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+		// get curl response
+		curl_exec($ch);
+		curl_close($ch);
+		fclose($fp);
+	}
+
+	private function showExampleParameters()
+	{
+		$example = [
+
+			'sql' => array(
+				'user' => 'admin',
+				'password' => null,
+				'db' => 'froxlor',
+				'host' => 'localhost',
+				'root_user' => 'root',
+				'root_password' => null
+			),
+			'sys' => array(
+				'hostname' => 'mydomain.tld',
+				'ipaddress' => '123.123.123.123',
+				'mysqlaccess_hosts' => 'localhost',
+				'nameservers' => '',
+				'admin' => 'admin',
+				'admin_password' => null
+			)
+		];
+
+		InstallFroxlorCmd::println("");
+		InstallFroxlorCmd::println("Example parameter file:");
+		InstallFroxlorCmd::println("");
+
+		foreach ($example as $key => $values) {
+			foreach ($values as $subkey => $value) {
+				InstallFroxlorCmd::println($key . "." . $subkey . "=" . ($value ?? ""));
+			}
+		}
 	}
 }
 
