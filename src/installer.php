@@ -69,7 +69,7 @@ class InstallFroxlorCmd extends CmdLineHandler
 		self::println("--local\t\t\tPath to froxlor-tarball to use for installation. If specified no files will be downloaded");
 		self::println("\t\t\tExample: --local=/path/to/froxlor-latest.tar.gz");
 		self::println("");
-		self::println("--git\t\t\tDo not download tarball but clone the git repository of froxlor (development version)");
+		self::println("--git\t\t\tDo not download tarball but clone the git repository of froxlor (development version). Be sure to have composer installed");
 		self::println("");
 		self::println("--import-settings\tImport settings from another froxlor installation.");
 		self::println("\t\t\tExample: --import-settings=/path/to/Froxlor_settings-[version]-[dbversion]-[date].json or --import-settings=http://domain.tld/Froxlor_settings-[version]-[dbversion]-[date].json");
@@ -301,6 +301,24 @@ class Action
 		}
 		// now froxlor lies within $basedir + 'froxlor';
 		$this->_data['basedir'] .= 'froxlor/';
+
+		if ($do_git) {
+			// check for composer
+			exec("which composer", $result);
+			if (!empty($result) && is_array($result) && count($result) > 0) {
+				$result = trim($result[0]);
+			}
+			while (true) {
+				$result = InstallFroxlorCmd::getInput("Please provide the full path to composer or composer.phar", $result);
+				if (!file_exists($result)) {
+					InstallFroxlorCmd::printerr("File '" . $result . "' could not be found, please retry.");
+				} else {
+					chdir($this->_data['basedir']);
+					exec('php ' . $result . ' install --no-dev');
+					break;
+				}
+			}
+		}
 
 		if (!is_dir($this->_data["basedir"])) {
 			InstallFroxlorCmd::printerr("Something seems to went wrong with extracting. Aborting...");
