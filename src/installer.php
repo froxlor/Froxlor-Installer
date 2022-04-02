@@ -30,7 +30,7 @@ class InstallFroxlorCmd extends CmdLineHandler
 	 *
 	 * @var string
 	 */
-	public static $VERSION = '0.3-beta';
+	public static $VERSION = '0.4-beta';
 
 	/**
 	 * list of valid switches
@@ -118,11 +118,11 @@ class Action
 		$do_git = false;
 		$do_params_file = false;
 		if (array_key_exists("local", $this->_args)) {
-			if (! is_file($this->_args["local"])) {
+			if (!is_file($this->_args["local"])) {
 				throw new Exception("Given file is not a file");
-			} elseif (! file_exists($this->_args["local"])) {
+			} elseif (!file_exists($this->_args["local"])) {
 				throw new Exception("Given file cannot be found ('" . $this->_args["local"] . "')");
-			} elseif (! is_readable($this->_args["local"])) {
+			} elseif (!is_readable($this->_args["local"])) {
 				throw new Exception("Given file cannot be read ('" . $this->_args["local"] . "')");
 			}
 			$do_download = false;
@@ -131,7 +131,7 @@ class Action
 			$do_git = true;
 		} elseif (array_key_exists("parameters-file", $this->_args)) {
 			$do_params_file = true;
-		} elseif (array_key_exists("skip-download", $this->_args) && ! array_key_exists("local", $this->_args) && ! array_key_exists("git", $this->_args)) {
+		} elseif (array_key_exists("skip-download", $this->_args) && !array_key_exists("local", $this->_args) && !array_key_exists("git", $this->_args)) {
 			InstallFroxlorCmd::printerr("If you skip downloading of froxlor, you need to specify the path to the tarbal using --local or use --git");
 			exit();
 		} elseif (array_key_exists("example-parameters", $this->_args)) {
@@ -176,7 +176,7 @@ class Action
 
 		// check for php_pdo and pdo_mysql
 		InstallFroxlorCmd::printnoln("Checking PHP PDO extension ...");
-		if (! extension_loaded('pdo') || in_array("mysql", PDO::getAvailableDrivers()) == false) {
+		if (!extension_loaded('pdo') || in_array("mysql", PDO::getAvailableDrivers()) == false) {
 			InstallFroxlorCmd::printerr("Not found");
 			$_die = true;
 		} else {
@@ -229,12 +229,12 @@ class Action
 	{
 		InstallFroxlorCmd::printnoln("Checking PHP " . $ext . " extension ...");
 
-		if (! extension_loaded($ext)) {
-			if (! $optional) {
+		if (!extension_loaded($ext)) {
+			if (!$optional) {
 				InstallFroxlorCmd::printerr("[not found]");
 				$_die = true;
 			} else {
-				InstallFroxlorCmd::printwarn("[not installed, but not required]");
+				InstallFroxlorCmd::printwarn("[not installed, but recommended]");
 			}
 		} else {
 			InstallFroxlorCmd::printsucc("[ok]");
@@ -283,7 +283,7 @@ class Action
 			}
 		}
 
-		if (isset($this->_args["local"]) && ! empty($this->_args["local"])) {
+		if (isset($this->_args["local"]) && !empty($this->_args["local"])) {
 			// extract
 			InstallFroxlorCmd::println("Extracting froxlor to " . $this->_data['basedir'] . "froxlor");
 			exec("tar xzf " . $this->_args["local"] . " -C " . $this->_data['basedir']);
@@ -291,7 +291,7 @@ class Action
 			// check for git binary
 			$result = null;
 			exec("which git", $result);
-			if (! empty($result) && is_array($result) && count($result) > 0) {
+			if (!empty($result) && is_array($result) && count($result) > 0) {
 				$result = trim($result[0]);
 			} else {
 				InstallFroxlorCmd::printerr("Required git-binary not found for cloning repository. Aborting...");
@@ -302,7 +302,7 @@ class Action
 		// now froxlor lies within $basedir + 'froxlor';
 		$this->_data['basedir'] .= 'froxlor/';
 
-		if (! is_dir($this->_data["basedir"])) {
+		if (!is_dir($this->_data["basedir"])) {
 			InstallFroxlorCmd::printerr("Something seems to went wrong with extracting. Aborting...");
 			die();
 		}
@@ -326,14 +326,16 @@ class Action
 			'mysqlaccess_hosts' => 'localhost',
 			'nameservers' => '',
 			'admin' => 'admin',
-			'admin_password' => null
+			'admin_password' => null,
+			'webserver_user' => 'www-data',
+			'webserver' => 'apache24'
 		);
 
 		if ($do_params_file) {
 			$import_data = $this->importParametersFile();
 			$imp_arr = explode("\n", $import_data);
 			foreach ($imp_arr as $line) {
-				if (! empty(trim($line))) {
+				if (!empty(trim($line))) {
 					$keyval = explode("=", $line);
 					array_map('trim', $keyval);
 					$impkey = explode(".", $keyval[0]);
@@ -387,6 +389,17 @@ class Action
 					InstallFroxlorCmd::printerr("Passwords do not match, please enter again");
 				}
 			}
+
+			while (true) {
+				$p = "Select the webserver you would like to use (apache24, nginx or lighttpd)";
+				$webserver = InstallFroxlorCmd::getInput($p, 'apache24');
+				if (!in_array($webserver, ['apache24', 'nginx', 'lighttpd'])) {
+					InstallFroxlorCmd::printerr("Please type one of the following: apache24, nginx, lighttpd");
+				} else {
+					$this->_data['sys']['webserver'] = $webserver;
+					break;
+				}
+			}
 		}
 
 		InstallFroxlorCmd::printwarn("Testing MySQL root connection");
@@ -427,12 +440,12 @@ class Action
 		$db_root->exec('SET sql_mode = "' . $sql_mode . '"');
 
 		// db check
-		if (! $this->db_check($db_root, $this->_data['sql'])) {
+		if (!$this->db_check($db_root, $this->_data['sql'])) {
 			InstallFroxlorCmd::printerr("Aborting installation...\n");
 			die();
 		}
 
-		if (! $do_params_file) {
+		if (!$do_params_file) {
 			InstallFroxlorCmd::printwarn("Enter the username of the unprivileged MySQL user you want Froxlor to use." . PHP_EOL . "The default is 'froxlor'." . PHP_EOL . "CAUTION: any user with that name will be deleted!");
 
 			$p = "MySQL unprivileged user";
@@ -481,7 +494,7 @@ class Action
 
 	private function db_check(&$db_root, &$sql)
 	{
-		if (isset($sql['db']) && ! empty($sql['db'])) {
+		if (isset($sql['db']) && !empty($sql['db'])) {
 			// check for existence
 			$qresult = $db_root->query("SHOW DATABASES LIKE '" . $sql['db'] . "'", PDO::FETCH_ASSOC);
 			$result = $qresult->fetchAll();
@@ -491,7 +504,7 @@ class Action
 				$check = array_shift($result[0]);
 			}
 
-			if (! empty($check) && $check == $sql['db']) {
+			if (!empty($check) && $check == $sql['db']) {
 				InstallFroxlorCmd::printwarn("Database '" . $sql['db'] . "' already exists.");
 
 				$p = "Would you like to enter a new database name? [Y/n]";
@@ -523,13 +536,13 @@ class Action
 		$sqltmp = $this->_data['basedir'] . 'install/froxlor.sql';
 
 		$mysql_access_host_array = array_map('trim', explode(',', $this->_data['sys']['mysqlaccess_hosts']));
-		if (in_array('127.0.0.1', $mysql_access_host_array) || ! in_array('localhost', $mysql_access_host_array)) {
+		if (in_array('127.0.0.1', $mysql_access_host_array) || !in_array('localhost', $mysql_access_host_array)) {
 			$mysql_access_host_array[] = 'localhost';
 		}
-		if (! in_array('127.0.0.1', $mysql_access_host_array) && in_array('localhost', $mysql_access_host_array)) {
+		if (!in_array('127.0.0.1', $mysql_access_host_array) && in_array('localhost', $mysql_access_host_array)) {
 			$mysql_access_host_array[] = '127.0.0.1';
 		}
-		if (! in_array($this->_data['sys']['ipaddress'], $mysql_access_host_array)) {
+		if (!in_array($this->_data['sys']['ipaddress'], $mysql_access_host_array)) {
 			$mysql_access_host_array[] = $this->_data['sys']['ipaddress'];
 		}
 		$this->_data['sys']['mysqlaccess_hosts'] = implode(',', $mysql_access_host_array);
@@ -602,6 +615,37 @@ class Action
 		");
 		InstallFroxlorCmd::printsucc("[ok]");
 
+		InstallFroxlorCmd::printwarn("Adjusting settings ...");
+		$upd_stmt = $db->prepare("
+			UPDATE `panel_settings` SET
+			`value` = :value
+			WHERE `settinggroup` = :group AND `varname` = :varname
+		");
+		$this->_updateSetting($upd_stmt, 'admin@' . $this->_data['sys']['hostname'], 'panel', 'adminmail');
+		$this->_updateSetting($upd_stmt, $this->_data['sys']['webserver'], 'system', 'webserver');
+		$this->_updateSetting($upd_stmt, $this->_data['sys']['webserver_user'], 'system', 'httpuser');
+		$this->_updateSetting($upd_stmt, $this->_data['sys']['webserver_user'], 'system', 'httpgroup');
+		if ($this->_data['sys']['webserver'] == 'apache24') {
+			$this->_updateSetting($upd_stmt, 'apache2', 'system', 'webserver');
+			$this->_updateSetting($upd_stmt, '1', 'system', 'apache24');
+		} elseif ($this->_data['sys']['webserver'] == "lighttpd") {
+			$this->_updateSetting($upd_stmt, '/etc/lighttpd/conf-enabled/', 'system', 'apacheconf_vhost');
+			$this->_updateSetting($upd_stmt, '/etc/lighttpd/froxlor-diroptions/', 'system', 'apacheconf_diroptions');
+			$this->_updateSetting($upd_stmt, '/etc/lighttpd/froxlor-htpasswd/', 'system', 'apacheconf_htpasswddir');
+			$this->_updateSetting($upd_stmt, '/etc/init.d/lighttpd reload', 'system', 'apachereload_command');
+			$this->_updateSetting($upd_stmt, '/etc/lighttpd/lighttpd.pem', 'system', 'ssl_cert_file');
+			$this->_updateSetting($upd_stmt, '/var/run/lighttpd/', 'phpfpm', 'fastcgi_ipcdir');
+		} elseif ($this->_data['sys']['webserver'] == "nginx") {
+			$this->_updateSetting($upd_stmt, '/etc/nginx/sites-enabled/', 'system', 'apacheconf_vhost');
+			$this->_updateSetting($upd_stmt, '/etc/nginx/sites-enabled/', 'system', 'apacheconf_diroptions');
+			$this->_updateSetting($upd_stmt, '/etc/nginx/froxlor-htpasswd/', 'system', 'apacheconf_htpasswddir');
+			$this->_updateSetting($upd_stmt, '/etc/init.d/nginx reload', 'system', 'apachereload_command');
+			$this->_updateSetting($upd_stmt, '/etc/nginx/nginx.pem', 'system', 'ssl_cert_file');
+			$this->_updateSetting($upd_stmt, '/var/run/', 'phpfpm', 'fastcgi_ipcdir');
+			$this->_updateSetting($upd_stmt, 'error', 'system', 'errorlog_level');
+		}
+		InstallFroxlorCmd::printsucc("[ok]");
+
 		InstallFroxlorCmd::printwarn("Installing Froxlor data file ...");
 		exec("rm -f " . $this->_data['basedir'] . "/lib/userdata.inc.php");
 		exec("touch " . $this->_data['basedir'] . "/lib/userdata.inc.php");
@@ -624,6 +668,15 @@ class Action
 		InstallFroxlorCmd::printnoln("Correcting permissions for webserver ...");
 		exec("chown -R " . $this->_data['sys']['webserver_user'] . ":" . $this->_data['sys']['webserver_user'] . " " . $this->_data['basedir']);
 		InstallFroxlorCmd::printsucc("[ok]");
+	}
+
+	private function _updateSetting(&$stmt = null, $value = null, $group = null, $varname = null)
+	{
+		$stmt->execute(array(
+			'group' => $group,
+			'varname' => $varname,
+			'value' => $value
+		));
 	}
 
 	private function _grantPrivilegesTo(&$db, $username = null, $password = null, $access_host = null, $p_encrypted = false)
@@ -676,11 +729,11 @@ class Action
 			$this->downloadFile($this->_args["parameters-file"], $target);
 			$this->_args["parameters-file"] = $target;
 		}
-		if (! is_file($this->_args["parameters-file"])) {
-			throw new \Exception("Given parameters file is not a file (".$this->_args["parameters-file"].")");
-		} elseif (! file_exists($this->_args["parameters-file"])) {
+		if (!is_file($this->_args["parameters-file"])) {
+			throw new \Exception("Given parameters file is not a file (" . $this->_args["parameters-file"] . ")");
+		} elseif (!file_exists($this->_args["parameters-file"])) {
 			throw new \Exception("Given parameters file cannot be found ('" . $this->_args["parameters-file"] . "')");
-		} elseif (! is_readable($this->_args["parameters-file"])) {
+		} elseif (!is_readable($this->_args["parameters-file"])) {
 			throw new \Exception("Given parameters file cannot be read ('" . $this->_args["parameters-file"] . "')");
 		}
 		$imp_content = file_get_contents($this->_args["parameters-file"]);
@@ -723,7 +776,9 @@ class Action
 				'mysqlaccess_hosts' => 'localhost',
 				'nameservers' => '',
 				'admin' => 'admin',
-				'admin_password' => null
+				'admin_password' => null,
+				'webserver_user' => 'www-data',
+				'webserver' => 'apache24'
 			)
 		];
 
