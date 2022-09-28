@@ -1,3 +1,5 @@
+**Discontinued due to existing shell-installer in froxlor-2.0**
+
 # Froxlor-Installer
 
 A simple shell installer for froxlor
